@@ -1,0 +1,55 @@
+-- Functions.map sturcture
+-- Return type is a table,contains all function maps.
+-- Then,in main returned table,every Key is a name of a language 
+-- (Displayed in Change current language menu)
+-- For example,Lua is a key,and a table indexed by it is a table to contain all pages in lua language
+-- And,in Change current language menu,we can see a item named 'Lua' , change current language to this the Function map's menu will have the pages in 'Lua' table.
+-- pages are sub table in every language's table,and their indexs is the actually page number in Function map menu
+-- Inside the page table,one table is one row in editor
+-- Must 3 items in one row!
+
+-- Tips: If you want to change the default current language name,you can change CurrentLanguage variable to you want in editor's code.
+return { 
+        Lua = {       -- contains Lua language's pages
+                [1] = {  -- page one's functions
+                        {"print()","return","if"},  -- row 1 of page 1
+                        {"then","cls()","end"},
+                        {"sleep()","wait_click","function"},
+                        {"--[[","--]]","else"},
+                        {"until","require()","local"},
+                        {"repeat","@param","@default"}
+                      }
+                -- To add more pages,do like below:
+                -- [2] = { {...},{...}} 
+                -- Here,[2] is the page number,and {...} is the row of a page,3 items in one line.
+            },
+        -- To add more languages,do <LanguageName> = {[1] = {{...},{...}}, [2] = {{...},{...}}}
+        -- As above,<LanguageName> is your language name which will be displayed in change current language menu
+        -- [1],[2] are pages,and {...} are rows in pages
+        uBasic = {
+                    [1] = {
+                            {"rem","print","sleep"},
+                            {"shoot","wait_click","if"},
+                            {"while","is_key","gosub"},
+                            {"click","endif","until"},
+                            {"set_sv96","set_av96","set_aflock"},
+                            {"release","get_mode","goto"}
+                          },
+                    [2] = {
+                            {"@param","@default","@title"},
+                            {"@chdk_version"}, -- Note: this string is too long that if we concreate this with other assign it'll deispay wrong,so we should make it in one line
+                            {"@subtitle","@values","@ranges"}
+                          }
+                 },
+        Java = { -- For Java coding :)
+                [1] = {
+                        {"public","void","abstract"},
+                        {"if","extends","return"},
+                        {"int","boolean","private"},
+                        {"interface","class","else"},
+                        {"try","catch","String"},
+                        {"{}","implements","for"},
+                        {"package","import","switch"}
+                      }
+               }
+    }
