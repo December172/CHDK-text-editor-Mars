@@ -116,7 +116,7 @@ ShiftY = 1
 ShiftX = 0
 LETTER_NR = 1
 WriteKey = 0
-local VERSION = "1.3" 
+local VERSION = "1.3-alpha" 
 -- Hotkeys,use as least as we can to save more keys for future using
 -- TODO: Remove typecal and common keys.
 Hotkeys = {
@@ -127,7 +127,7 @@ Hotkeys = {
           }
 -- Compressed in on line,'cause it's too big :)
 LetterMap = {{{"a","b","c","d","e","f"},{"g","h","i","j","k","l"},{"m","n","o","p","q","r","s"},{"t","u","v","w","x","y","z"}},{{"A","B","C","D","E","F"},{"G","H","I","J","K","L"},{"M","N","O","P","Q","R","S"},{"T","U","V","W","X","Y","Z"}},{{"1","2","3"},{"4","5","6"},{"7","8","9"},{"0","+","-","*","/","="}}}
-SpecialCharMap = {{"newline"},{"(",")","[","]","{","}"},{"<",">",",","'",":",";"},{"_","+","-","/","\\","="},{"@","!","?","#","\"","."},{"~","&","*","|","^","`","%"},{"ASCII code"}}
+SpecialCharMap = InsertMenu:setTab({{"newline"},{"(",")","[","]","{","}"},{"<",">",",","'",":",";"},{"_","+","-","/","\\","="},{"@","!","?","#","\"","."},{"~","&","*","|","^","`","%"},{"ASCII code"}}):setTitle("Insert a special char"):onInit()
 Menu = {}
 
 InsertMenu = Menu:new()
@@ -141,7 +141,7 @@ Menus = {
                     {{"Settings..."},   "submenu"},
                     {{"Exit (no save!)"}, "other"},
                     {{"About Mars"},       "func"}
-                   }):setName("Main Menu"):setCallback(MenuFunctions.Main),
+                   }):setName("Main Menu"):setCallback(MenuFunctions.Main):onInit(),
             File = Menu:new():setTab({
                     {{"New file"},               "func"},
                     {{"Load file..."},           "func"},
@@ -151,16 +151,16 @@ Menus = {
                     {{"Clear whole file"},       "func"},
                     {{"Close current file"},     "func"},
                     {{"Change current file..."}, "func"}
-                   }):setName("File Menu"):setCallback(MenuFunctions.File),
+                   }):setName("File Menu"):setCallback(MenuFunctions.File):onInit(),
             Edit = Menu:new():setTab({
                     {{"Search..."},                       "func"}, -- TODO: add more search menu item
                     {{"Change current code language..."}, "func"},
                     {"Merge files...",                    "func"}
-                    }):setName("Edit Menu"):setCallback(MenuFunctions.File),
-            Settings = Menu:new():setTab({
+                    }):setName("Edit Menu"):setCallback(MenuFunctions.File):onInit(),
+            Settings = SettingMenu:new():setTab({
                     {{"Enable/Disable backup (next save)"},"other"},
                     {{"Change 'tab' hotkey's spaces"},     "other"}
-                   }):setName("Settings"):setCallback(MenuFunctions.Settings),
+                   }):setName("Settings"):setCallback(MenuFunctions.Settings):onInit(),
            }
 TopBar = ""
 StatusBar = ""
@@ -295,7 +295,7 @@ end
 -- TODO: Add more choices (or controllable choices)
 function SelectFileName()
     local saveDirs = {{"A"},{"A/CHDK"},{"A/CHDK/LUALIB"},{"Cancel"}}
-    local dirName = Menu(saveDirs,WIDTH,HEIGHT,"Select a directory",20,2)
+    local dirName = Dialog(saveDirs,WIDTH,HEIGHT,"Select a directory",20,2)
     if (dirName == "Cancel" or dirName == nil) then return -1 end
     local fileName = textbox("File name", "Enter file name", "Untitled.txt", 24)
     if (type(fileName) == "nil" or file_name == "") then fileName = "Untitled.txt" end
@@ -370,7 +370,7 @@ function MergeFiles()
             table.insert(fileList,{j.Name})
         end
     end
-    local fromFile = Menu(fileList,WIDTH,HEIGHT,"Choose a file to merge",nil,2)
+    local fromFile = Dialog(fileList,WIDTH,HEIGHT,"Choose a file to merge",nil,2)
     if fromFile == nil then
         return -1
     end
@@ -410,14 +410,22 @@ end
 --[[
 -- Menu lifecycle:
 -- Menu:new() <called in init menus>
--- -> Menu:setTab(tab):setTitle(title):setCallback(callback)  <called in init menus>
+-- -> Menu:setTab(tab):setTitle(title):setCallback(callback):onInit()  <called in init menus>
 -- -> Menu:onCall() (or Menu:onCall(parent)) <called in other functions,like ModeFunctions.Write>
 -- --> Menu:onDraw(...) <called in Menu:onCall()>
--- ---> Menu:inputHandler
+-- ---> Menu.inputHandler
 -- -> (return to onCall() and process some input)
 -- (-> Menu:setWidth() / Menu:setHeight() / Menu:somefunction()...)
 -- -> (return to main editor or return to parent menu)
 -- -> <repeat step 3 - 5 >
+
+-- To make a runnable menu, override ('rewrite') Menu:onCall() (implements in a divided function or directly override a Menu:onCall()) & Menu item init(setTab({...}):setTitle():setCallback():onInit())
+-- If you want more customable,override :onDraw() & .inputHandler() (static method,unrecommend)
+-- Or override :onInit()
+
+-- To make a menu class, just make a normal menu object (by Menu:new())
+-- And reimplements :onCall(),:onDraw() and :onInit()
+-- Tips: if you don't want to reimplement these functions,you can just make a "Menu:<onDoingSth>" and write menu-specific code in the rest :on*() function
 --]]
 
 function Menu:new()
@@ -428,7 +436,8 @@ end
 
 -- Only need to change in menu classes
 -- No need to change in each menus.
-function Menu:inputHandler(tab, menuPosX, menuPosY)
+-- This is a static member function,use .sth() instead of :sth() to call
+function Menu.inputHandler(tab, menuPosX, menuPosY)
     input = GetInput()
     if input == "up" then 
         menuPosY = menuPosY - 1
@@ -443,11 +452,25 @@ function Menu:inputHandler(tab, menuPosX, menuPosY)
         menuPosX = menuPosX + 1
         return {menuPosX, menuPosY}
     end
+    -- here,table 'tab' is just a item table
+    -- but because menu is line-by-line, so menuPosY could be the selected menu item's index
+    -- the last '1' is a flag to make onDraw() knows
     if input == "set" then
-        return {tab[menuPosY][menuPosX]}
+        return {tab[menuPosY][menuPosX], menuPosY, 1}
     elseif input == Hotkeys.MenuKey then
-        return {}
+        return {nil, nil, 1}
     end
+end
+
+--[[
+-- parent menu init code. Load default values.
+-- can be called at init or restore original menu values
+--]]
+function Menu:onInit()
+        self.width = WIDTH
+        self.height = HEIGHT
+        self.title = self.title or "Test Menu"
+        return self
 end
 
 function Menu:onDraw(itemWidth, topLines)
@@ -459,6 +482,7 @@ function Menu:onDraw(itemWidth, topLines)
         topLines = 0
     end
     local tab = {}
+    -- collect all items' text to a table
     for _,v in ipairs(self.tab) do
         table.insert(tab, v[1])
     end
@@ -516,11 +540,13 @@ function Menu:onDraw(itemWidth, topLines)
             print("")
         end
         local res = self.inputHandler()
-        if not res[2] then
+        if res[3] == 1 then
             exitMenu = true
-            return res[1]
+            return res[1], res[2]
         else
-            menuPosX =
+            menuPosX = res[1]
+            menuPosY = res[2]
+        end
     until exitMenu == true
 end
 
@@ -544,7 +570,9 @@ function Menu:setTab(tab)
 end
 
 function Menu:getEntryType(idx)
-    return self.tab[idx][2]
+    if idx ~= nil then 
+        return self.tab[idx][2]
+    end
 end
 
 -- helper
@@ -556,28 +584,43 @@ function menuEntriesType(menu)
            end
 end
 
-
+-- Useful Menu's sub-classes
 InsertMenu = Menu:new()
+SettingMenu = Menu:new()
+
+function InsertMenu:onDraw(itemWidth, topLines)
+    local res = {}
+    for k,v in pairs(self.tab) do
+        table.remove(self.tab, k)
+        table.insert(self.tab, k, {v, 'line'})  -- insert a dummy value to pass Menu:onDraw()
+    end
+    res = (Menu:onDraw(itemWidth, topLines))  -- force to only return one value (only item)
+    for g,f in pairs(self.tab) do
+        table.remove(self.tab, g)
+        table.insert(self.tab, g, f[1])
+    end
+    return res
+end
+
+function InsertMenu:onCall(itemWidth, topLines)
+    return self:onDraw(itemWidth, topLines)
+end
+
+function SettingMenu:onDraw(itemWidth, topLines)
+    return Menu:onDraw(itemWidth, topLines)
+end
+
 
 -- Note here:
 -- tail call only uses on a function that it doesn't need to return to menu
 -- If a normal (need to return to menu) function use a tail call,it'll be not converient.
+
+-- For managing, I placed all of callbacks in MenuFunctions
+-- But needn't to do as the same
 function MenuFunctions.Main()
-    local item = Menu(MenuTabs.Main,WIDTH,HEIGHT,"Main Menu",nil,3)
-    if item ~= nil and string.find(item," menu") then
-        --[[
-        -- a bit complex,see details below:
-        -- first,the MenuFunctions table contains the Menu callback functions indexed by their name without ' menu' suffix.
-        -- e.g,"File menu"'s callback is MenuFunctions["File"],don't have ' menu'
-        -- so,the '(string.gsub(item," menu","",1))' is to replace the first ' menu' to ''(empty)
-        -- and then,use Menus[...] to index it,which we'll get a sub-menu
-        -- finally,call its callback 'onCall' and pass current menu('Main Menu') as the parent.('MenuFunctions[...]:onCall(Menus.Main)')
-        -- Messy and trickful,but usable.
-        --]]
-        Menus[(string.gsub(item," menu","",1))]:onCall(Menus.Main) 
-    elseif item == "Settings..." then
-        -- Same here,but we only have one item: 'Settings',so no need for slice the string.
-        Menus["Settings"]:onCall(Menus.Main)
+    local item, idx = self:onDraw(nil, 3)
+    if self:getEntryType(idx) == "submenu" then  -- if it's a sub-menu...
+        Menus.item:onCall()  -- call its callback
     elseif item == "Exit (no save!)" then
         return restore()
     elseif item == "About Mars" then 
@@ -587,7 +630,8 @@ end
 
 -- Sub-menu Callbacks
 function MenuFunctions.File()
-    local item = Menu(MenuTabs.File,WIDTH,HEIGHT,"File Menu",nil,1)
+    -- no need to save idx
+    local item = self:onDraw(nil, 1)
     if item == "New file" then
         Files[CurrentFileID].Cursor.x = PosX
         Files[CurrentFileID].Cursor.y = PosY
@@ -607,7 +651,7 @@ function MenuFunctions.File()
         Clear()
     elseif item == "Close current file" then
         if Files[CurrentFileID].isSaved == "!" then
-            local canSave = Menu({{"Yes","No","Cancel"}},WIDTH,HEIGHT,"Do you want to save current file?",nil,3)
+            local canSave = Dialog({{"Yes","No","Cancel"}},WIDTH,HEIGHT,"Do you want to save current file?",nil,3)
             if canSave == "Yes" then
                 SaveCurrentFile()
             end
@@ -632,7 +676,7 @@ function MenuFunctions.File()
 end
 
 function MenuFunctions.Edit()
-    local item = Menu(MenuTabs.Edit,WIDTH,HEIGHT,"Edit Menu",nil,2)
+    local item = self:onDraw(nil, 2)
     if item == "Search..." then
         local patternToFind = textbox("Enter a lua pattern to find in current file","Less than 20 characters!","",20)
         if patternToFind == nil or type(patternToFind) ~= "string" or patternToFind:len() == 0 then
@@ -651,7 +695,7 @@ function MenuFunctions.Edit()
         for k,v in pairs(FunctionMaps) do
             table.insert(supportedLanguage,{k})
         end
-        local toChange = Menu(supportedLanguage,WIDTH,HEIGHT,"Change current language",nil,2)
+        local toChange = Dialog(supportedLanguage,WIDTH,HEIGHT,"Change current language",nil,2)
         if FunctionMaps[toChange] then
             CurrentLanguage = toChange
         end
@@ -662,13 +706,13 @@ end
 
 function MenuFunctions.Settings()
     if g == 1 then -- tab key is length-changeable,so there needn't a change space func
-        for i = 1,#(MenuTabs.Settings) do
-            if MenuTabs.Settings[i][1] == "Change 'tab' hotkey's spaces" then
-                table.remove(MenuTabs.Settings,i)
+        for i = 1,#(self.tab) do
+            if self.tab[i][1][1] == "Change 'tab' hotkey's spaces" then
+                table.remove(self.tab, i)
             end
         end
     end
-    local item = Menu(MenuTabs.Settings,WIDTH,HEIGHT,"Settings",nil,1)
+    local item = self:onDraw(nil, 1)
     if item == "Enable/Disable backup (next save)" then
         if b == 0 then
             b = 1
@@ -685,7 +729,7 @@ function MenuFunctions.Settings()
             print("Change 'tab' hotkey's spaces to "..t.." spaces done.")
         end
     end
-    sleep(500)    
+    sleep(500)
 end
 -- End Sub-menu Callbacks
 
@@ -947,10 +991,10 @@ function ModeFunctions.Write()
         WriteKey = 0
         insertion = ""
         Files[CurrentFileID].isSaved = "!"
-        insertion = Menu(SpecialCharMap,WIDTH,HEIGHT,"Insert a special char",nil,2)
+        insertion = SpecialCharMap:onCall(nil, 2)
         if insertion == nil then
              for i = 1, #FunctionMaps[CurrentLanguage] do
-                if insertion == nil then insertion = Menu(FunctionMaps[CurrentLanguage][i], WIDTH, HEIGHT, "Insert a function",12,0)
+                if insertion == nil then insertion = FunctionMaps[CurrentLanguage][i]:onCall(12, 0)
                 else break
                 end
             end
@@ -1300,6 +1344,11 @@ end
 -- real main loop
 local function main()
     LoadFunctionMaps() -- init here to less mem use in load file func to be able to load bigger file
+    for k,v in pairs(FunctionMaps) do
+        for g,f in ipairs(FunctionMaps[k]) do
+            FunctionMaps[k][g] = InsertMenu:new():setTab(f):setTitle("Insert a function"):onInit()
+        end
+    end
     insertion = ""
     -- Here,use the least Draw() as we can,to agninst the flash of screen  
     repeat
