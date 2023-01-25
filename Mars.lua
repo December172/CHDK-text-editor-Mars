@@ -1,7 +1,6 @@
 --[[
 @title Mars - Text Editor
 @chdk_version 1.4.1
-
 @subtitle Initial Settings
 @param w Width
 @default w 45
@@ -12,13 +11,12 @@
 @param a Write a new file?
 @default a 0
 @values a No Yes
-@param f Browse file in CHDK/?
+@param n Browse file in CHDK/?
 @default n 0
 @values n No Yes
 @param f Browse file in what CHDK/ subdirectory?
 @default f 0
 @values f <root> SCRIPTS LOGS BOOKS HELP DATA
-
 @subtitle Settings
 @param b Do backups?
 @default b 0
@@ -32,7 +30,6 @@
 @param t How many spaces press the 'tab' hotkey?
 @default t 4
 @range t 0 8
-
 @subtitle Key Mapping
 @param j Have DISP key?
 @default j 1
@@ -43,12 +40,13 @@
 @param l Have VIDEO key?
 @default l 0
 @values l No Yes
-
-@subtitle HotKey
+@subtitle Hotkey
 @param e Use what key for 'tab'?
-@default e 1 
-@values e DISP PLAYBACK VIDEO
-
+@default e 0 
+@values e DISP PLAYBACK VIDEO 
+@param q Use what key for 'insert menu'? 
+@default q 0 
+@values q MENU VIDEO PLAYBACK DISP
 @subtitle Debug
 @param c Logging?
 @default c 0
@@ -118,45 +116,51 @@ ShiftY = 1
 ShiftX = 0
 LETTER_NR = 1
 WriteKey = 0
-local VERSION = "1.2" 
+local VERSION = "1.3" 
 -- Hotkeys,use as least as we can to save more keys for future using
+-- TODO: Remove typecal and common keys.
 Hotkeys = {
-           MenuKey          = "menu",       -- Should fit on all camera
-           TabKey           = "playback",   -- Have a option to fit other cameras,see init()
-           ChangeSubModeKey = "shoot_full"  -- Same as MenuKey
+           MenuKey          = "menu",        -- Should fit on all camera
+           TabKey           = "playback",    -- Have a option to fit other cameras,see init()
+           ChangeSubModeKey = "shoot_full",  -- Same as MenuKey
+           InsertKey        = "display"      -- Should fit on most of camera
           }
 -- Compressed in on line,'cause it's too big :)
 LetterMap = {{{"a","b","c","d","e","f"},{"g","h","i","j","k","l"},{"m","n","o","p","q","r","s"},{"t","u","v","w","x","y","z"}},{{"A","B","C","D","E","F"},{"G","H","I","J","K","L"},{"M","N","O","P","Q","R","S"},{"T","U","V","W","X","Y","Z"}},{{"1","2","3"},{"4","5","6"},{"7","8","9"},{"0","+","-","*","/","="}}}
 SpecialCharMap = {{"newline"},{"(",")","[","]","{","}"},{"<",">",",","'",":",";"},{"_","+","-","/","\\","="},{"@","!","?","#","\"","."},{"~","&","*","|","^","`","%"},{"ASCII code"}}
+Menu = {}
+
+InsertMenu = Menu:new()
 -- This should not in one line because we can see it's struct clearly
 -- Easier to add new item.
-MenuTabs = {        -- Remember: every sub-menu should have a callback(if menu is "Example menu",the callback is MenuFunctions.Example)! 
-            Main = {
-                    {"File menu"},
-                    {"Edit menu"},
-                    {"Settings..."},
-                    {"Exit (no save!)"},
-                    {"About Mars"}
-                   },
-            File = {
-                    {"New file"},
-                    {"Load file..."},
-                    {"Save current file"},
-                    {"Save and exit"},
-                    {"Save as..."},
-                    {"Clear whole file"},
-                    {"Close current file"},
-                    {"Change current file..."}
-                   },
-            Edit = {
-                    {"Search..."}, -- TODO: add more search menu item
-                    {"Change current code language..."},
-                    {"Merge files..."}
-                   },
-            Settings = {
-                        {"Enable/Disable backup (next save)"},
-                        {"Change 'tab' hotkey's spaces"}
-                   }
+Menus = {        
+            -- Remember: every sub-menu should have a callback(if menu is "Example menu",the callback is MenuFunctions.Example)! 
+            Main = Menu:new():setTab({
+                    {{"File menu"},     "submenu"},
+                    {{"Edit menu"},     "submenu"},
+                    {{"Settings..."},   "submenu"},
+                    {{"Exit (no save!)"}, "other"},
+                    {{"About Mars"},       "func"}
+                   }):setName("Main Menu"):setCallback(MenuFunctions.Main),
+            File = Menu:new():setTab({
+                    {{"New file"},               "func"},
+                    {{"Load file..."},           "func"},
+                    {{"Save current file"},      "func"},
+                    {{"Save and exit"},          "func"},
+                    {{"Save as..."},             "func"},
+                    {{"Clear whole file"},       "func"},
+                    {{"Close current file"},     "func"},
+                    {{"Change current file..."}, "func"}
+                   }):setName("File Menu"):setCallback(MenuFunctions.File),
+            Edit = Menu:new():setTab({
+                    {{"Search..."},                       "func"}, -- TODO: add more search menu item
+                    {{"Change current code language..."}, "func"},
+                    {"Merge files...",                    "func"}
+                    }):setName("Edit Menu"):setCallback(MenuFunctions.File),
+            Settings = Menu:new():setTab({
+                    {{"Enable/Disable backup (next save)"},"other"},
+                    {{"Change 'tab' hotkey's spaces"},     "other"}
+                   }):setName("Settings"):setCallback(MenuFunctions.Settings),
            }
 TopBar = ""
 StatusBar = ""
@@ -165,7 +169,7 @@ CurrentLanguage = "Lua"
 -- default Function map,see Functions.map for more information about Function Map
 FunctionMaps = {
             Lua = {       -- contains Lua language's pages
-                    [1] = {  -- page one's functions
+                    [1] = {  -- page one's items
                             {"print()","return","if"},  -- row 1 of page 1
                             {"then","cls()","end"},
                             {"sleep()","wait_click","function"},
@@ -173,13 +177,17 @@ FunctionMaps = {
                             {"until","require()","local"},
                             {"repeat","@param","@default"}
                         }
+                    --[[
                     -- To add more pages,do like below:
                     -- [2] = { {...},{...}} 
                     -- Here,[2] is the page number,and {...} is the row of a page,3 items in one line.
+                    --]]
                 },
+            --[[
             -- To add more languages,do <LanguageName> = {[1] = {{...},{...}}, [2] = {{...},{...}}}
             -- As above,<LanguageName> is your language name which will be displayed in change current language menu
             -- [1],[2] are pages,and {...} are rows in pages
+            --]]
             uBasic = {
                     [1] = {
                             {"rem","print","sleep"},
@@ -187,11 +195,12 @@ FunctionMaps = {
                             {"while","is_key","gosub"},
                             {"click","endif","until"},
                             {"set_sv96","set_av96","set_aflock"},
+ 
                             {"release","get_mode","goto"}
                           },
                     [2] = {
                             {"@param","@default","@title"},
-                            {"@chdk_version"}, -- Note: this string is too long that if we concreate this with other assign it'll deispay wrong,so we should make it in one line
+                            {"@chdk_version"}, -- Note: this string is too long that if we concreate this with other assign it'll display wrong,so we should make it in one line
                             {"@subtitle","@values","@ranges"}
                           }
                  }
@@ -283,7 +292,7 @@ function NewFile()
     Log("Info","Created a new file.")
 end
 
--- TODO: Add more choices (or controlable choices)
+-- TODO: Add more choices (or controllable choices)
 function SelectFileName()
     local saveDirs = {{"A"},{"A/CHDK"},{"A/CHDK/LUALIB"},{"Cancel"}}
     local dirName = Menu(saveDirs,WIDTH,HEIGHT,"Select a directory",20,2)
@@ -398,25 +407,177 @@ function ChangeCurrentFile()
     end
 end
 
+--[[
+-- Menu lifecycle:
+-- Menu:new() <called in init menus>
+-- -> Menu:setTab(tab):setTitle(title):setCallback(callback)  <called in init menus>
+-- -> Menu:onCall() (or Menu:onCall(parent)) <called in other functions,like ModeFunctions.Write>
+-- --> Menu:onDraw(...) <called in Menu:onCall()>
+-- ---> Menu:inputHandler
+-- -> (return to onCall() and process some input)
+-- (-> Menu:setWidth() / Menu:setHeight() / Menu:somefunction()...)
+-- -> (return to main editor or return to parent menu)
+-- -> <repeat step 3 - 5 >
+--]]
+
+function Menu:new()
+    local menu = { width = WIDTH, height = HEIGHT, itemWidth = }
+    setmetatable(menu, { __index = self, __metatable = self})
+    return menu
+end
+
+-- Only need to change in menu classes
+-- No need to change in each menus.
+function Menu:inputHandler(tab, menuPosX, menuPosY)
+    input = GetInput()
+    if input == "up" then 
+        menuPosY = menuPosY - 1
+        return {menuPosX, menuPosY}
+    elseif input == "down" then 
+        menuPosY = menuPosY + 1
+        return {menuPosX, menuPosY}
+    elseif input == "left" then 
+        menuPosX = menuPosX - 1
+        return {menuPosX, menuPosY}
+    elseif input == "right" then 
+        menuPosX = menuPosX + 1
+        return {menuPosX, menuPosY}
+    end
+    if input == "set" then
+        return {tab[menuPosY][menuPosX]}
+    elseif input == Hotkeys.MenuKey then
+        return {}
+    end
+end
+
+function Menu:onDraw(itemWidth, topLines)
+    local menuPosY = 1
+    local menuPosX = 1
+    local menuShift = 0
+    local exitMenu = false
+    if topLines == nil then 
+        topLines = 0
+    end
+    local tab = {}
+    for _,v in ipairs(self.tab) do
+        table.insert(tab, v[1])
+    end
+    repeat
+        if menuPosX < 1 and menuPosY > 1 then
+            menuPosY = menuPosY - 1
+            menuPosX = table.getn(tab[menuPosY])
+        end
+        if menuPosX < 1 and menuPosY <= 1 then
+            menuPosY = table.getn(tab)
+            menuPosX = table.getn(tab[menuPosY])
+        end
+        if menuPosY < 1 then menuPosY = table.getn(tab) end
+        if menuPosY > table.getn(tab) then menuPosY = 1 end
+        if menuPosX > table.getn(tab[menuPosY]) and menuPosY < table.getn(tab) then
+            menuPosY = menuPosY + 1
+            menuPosX = 1
+        end
+        if menuPosX > table.getn(tab[menuPosY]) and menuPosY >= table.getn(tab) then
+            menuPosY = 1
+            menuPosX = 1
+        end
+        if menuPosY > self.height - 4 + menuShift then menuShift = menuPosY - self.height + 4 end
+        if menuPosY <= menuShift then menuShift = menuPosY - 1 end
+        for line = 0, topLines do
+            print("")
+        end
+        print(MakeStringBar(self.title, self.width))
+        for line = 1, table.getn(tab) do
+            if tab[line + menuShift] == nil then
+                drawLine = ""
+            elseif line + menuShift == menuPosY then
+                drawLine = ""
+                for place = 1, table.getn(tab[line + menuShift]) do
+                    local item = tab[line + menuShift][place]
+                    if itemWidth ~= nil then item = item..string.sub("                         ",1,itemWidth - #(item)) end
+                    if menuPosX ~= place then 
+                        drawLine = drawLine.." "..item.." "
+                    elseif menuPosX == place then 
+                        drawLine = drawLine.."\16"..item.."\17"
+                    end
+                end
+            elseif line + menuShift ~= menuPosY then
+                drawLine = ""
+                for place = 1, table.getn(tab[line + menuShift]) do
+                    item = tab[line + menuShift][place]
+                    if itemWidth ~= nil then item = item..string.sub("                         ",1,itemWidth - #(item)) end
+                    drawLine = drawLine.." "..item.." "
+               end
+            end
+            print(drawLine)
+        end
+        print(MakeStringBar("Select-["..menuPosX..","..menuPosY.."]",width))
+        for line = 0, self.height - 4 - topLines - table.getn(tab) do
+            print("")
+        end
+        local res = self.inputHandler()
+        if not res[2] then
+            exitMenu = true
+            return res[1]
+        else
+            menuPosX =
+    until exitMenu == true
+end
+
+-- Below Menu:set* functions are just for init menus table using for better readibility
+-- For set other field in Menu,use Menu.* = sth to set.
+
+function Menu:setTitle(title)
+    self.title = title
+    return self
+end
+
+function Menu:setCallback(callback)
+    -- .onCall() ('callback') have a optional paramter: parent - to let the sub-menus to know their parent menus.
+    self.onCall = callback
+    return self
+end
+
+function Menu:setTab(tab)
+    self.tab = tab
+    return self
+end
+
+function Menu:getEntryType(idx)
+    return self.tab[idx][2]
+end
+
+-- helper
+function menuEntriesType(menu)
+    local idx = 0
+    return function()
+                idx = idx + 1
+                return menu:getEntryType(idx)
+           end
+end
+
+
+InsertMenu = Menu:new()
+
 -- Note here:
 -- tail call only uses on a function that it doesn't need to return to menu
 -- If a normal (need to return to menu) function use a tail call,it'll be not converient.
--- Tail call saves mem and stack size,so use tail call as we can
 function MenuFunctions.Main()
     local item = Menu(MenuTabs.Main,WIDTH,HEIGHT,"Main Menu",nil,3)
     if item ~= nil and string.find(item," menu") then
+        --[[
         -- a bit complex,see details below:
         -- first,the MenuFunctions table contains the Menu callback functions indexed by their name without ' menu' suffix.
         -- e.g,"File menu"'s callback is MenuFunctions["File"],don't have ' menu'
         -- so,the '(string.gsub(item," menu","",1))' is to replace the first ' menu' to ''(empty)
-        -- and then,use MenuFunctions[...] to index it,which we'll get a callback function
-        -- finally,call it.('MenuFunctions[...]()')
-        -- Interface-like call
-        -- maybe here can be tail call? Not checked.
-        MenuFunctions[(string.gsub(item," menu","",1))]() 
+        -- and then,use Menus[...] to index it,which we'll get a sub-menu
+        -- finally,call its callback 'onCall' and pass current menu('Main Menu') as the parent.('MenuFunctions[...]:onCall(Menus.Main)')
+        -- Messy and trickful,but usable.
+        --]]
+        Menus[(string.gsub(item," menu","",1))]:onCall(Menus.Main) 
     elseif item == "Settings..." then
         -- Same here,but we only have one item: 'Settings',so no need for slice the string.
-        MenuFunctions["Settings"]()
+        Menus["Settings"]:onCall(Menus.Main)
     elseif item == "Exit (no save!)" then
         return restore()
     elseif item == "About Mars" then 
@@ -582,9 +743,11 @@ end
 function ModeFunctions.Move()
     StatusBar = "["..CurrentMode.."]["..JUMPS[JUMP].."\18]["..PosX..","..PosY.."/"..Files[CurrentFileID].LineSN.."]"
     TopBar = "- Mars \6 "..Files[CurrentFileID].Name.." ["..Files[CurrentFileID].isSaved.."] -"
+    Draw()
     input = GetInput()
     if input == "set" then 
-        CurrentMode = "Write"
+        CurrentMode = "Write" 
+        return ModeFunctions.Write()
     -- Here,optimized EDI's logic
     elseif input == "up" then
         PosY = PosY - JUMPS[JUMP]
@@ -607,8 +770,7 @@ function ModeFunctions.Move()
             PosY = Files[CurrentFileID].LineSN
             PosX = #(Files[CurrentFileID].Content[PosY])
         end
-    end
-    if input == "right" then
+    elseif input == "right" then
         PosX = PosX + 1
         if PosX > #(Files[CurrentFileID].Content[PosY]) and PosY < Files[CurrentFileID].LineSN then
             PosY = PosY + 1
@@ -642,10 +804,11 @@ function ModeFunctions.Move()
         CurrentMode = "Select"
     end
     if input == Hotkeys.ChangeSubModeKey then
-        JUMP = JUMP + 1 
-        Draw()
+        JUMP = JUMP + 1
+   
+        if JUMP > table.getn(JUMPS) then JUMP = 1 end
+        return ModeFunctions.Move()
     end
-    if JUMP > table.getn(JUMPS) then JUMP = 1 end
     if input == Hotkeys.MenuKey then
         return MenuFunctions["Main"]()
     end
@@ -695,7 +858,7 @@ function ModeFunctions.Write()
         if WriteSubMode > table.getn(LetterMap) then 
             WriteSubMode = 1
         end 
-        Draw()
+        return ModeFunctions.Write()
     end
     if input == "left" then 
         if WriteKey == 1 then
@@ -771,21 +934,23 @@ function ModeFunctions.Write()
        WriteKey = 0
     end
     if input == "set" then
-        if WriteKey == 0 then CurrentMode = "Move"
+        if WriteKey == 0 then 
+            CurrentMode = "Move" 
+            return ModeFunctions.Move()
         else
             WriteKey = 0
             insertion = ""
-        end 
+        end
         Draw()
     end
-    if input == Hotkeys.MenuKey then
+    if input == Hotkeys.InsertKey then
         WriteKey = 0
         insertion = ""
         Files[CurrentFileID].isSaved = "!"
         insertion = Menu(SpecialCharMap,WIDTH,HEIGHT,"Insert a special char",nil,2)
         if insertion == nil then
-            for i = 1, #FunctionMaps[CurrentLanguage] do
-                if insertion == nil then insertion = Menu(FunctionMaps[CurrentLanguage][i],WIDTH,HEIGHT,"Insert a function",12,0)
+             for i = 1, #FunctionMaps[CurrentLanguage] do
+                if insertion == nil then insertion = Menu(FunctionMaps[CurrentLanguage][i], WIDTH, HEIGHT, "Insert a function",12,0)
                 else break
                 end
             end
@@ -811,16 +976,16 @@ function ModeFunctions.Write()
             insertion = InsertAscii()
         end
     end
-    -- TODO: Menu can't be open in Write mode,because it uses menu key,and it'll conflict with the Insert menu.
-    -- maybe back to old-style Insert Menu key (DISP,or VIDEO)and main menu key(MENU) can solve this problem
-    -- but we will have a new hotkey mapping parameter...User will be confused,too.
+    if input == Hotkeys.MenuKey then
+        return MenuFunctions["Main"]()
+    end
     if input == nil then
         WriteKey = 0
         insertion = ""
     end
     Files[CurrentFileID].Content[PosY] = string.sub(Files[CurrentFileID].Content[PosY],1,PosX - delete)..insertion..string.sub(Files[CurrentFileID].Content[PosY],PosX + 1,#(Files[CurrentFileID].Content[PosY]))
     PosX = PosX + #(insertion) - delete 
-    return Draw()
+    return ModeFunctions.Write()    -- Use as redraw.
 end
 
 function InsertAscii()
@@ -875,7 +1040,7 @@ function InsertAscii()
 end
 
 -- Main Menu display routine,if some necessary parameters not given,it'll raise a error and exit(not like displaying a message in before)
-function Menu(tab,width,height,header,itemWidth,topLines)
+function Menu(tab, width, height, header,itemWidth, topLines)
     local menuPosY = 1
     local menuPosX = 1
     local menuShift = 0
@@ -944,7 +1109,7 @@ function Menu(tab,width,height,header,itemWidth,topLines)
             return tab[menuPosY][menuPosX]
         elseif input == Hotkeys.MenuKey then
             exitMenu = true
-            return nil
+            return nil 
         end
     until exitMenu == true
 end
@@ -1090,18 +1255,22 @@ local function init()
            end
     end
     
-    -- Hotkey Mapping
+    -- Hotkey Mapping 
     local tabMapping = {"display","playback","video"}
-    table.insert(KeysTable,tabMapping[e + 1]) -- In here,if you defined tabKey as a non-exist key,the Mars will assume you have this key(may cause bugs) 
+    table.insert(KeysTable, tabMapping[e + 1])
+    -- In here,if you defined tabKey as a non-exist key,the Mars will assume you have this key(may cause bugs) 
     Hotkeys.tabKey = tabMapping[e + 1]
-    
+    local insertMapping = {"menu","video","playback","display"}
+    table.insert(KeysTable, insertMapping[q + 1])
+    Hotkeys.InsertKey = insertMapping[q + 1]
+
     -- Key Mapping
-    -- thinking: if a user both have disp and video key,will he only choose disp and don't use video key?
     local usedKeys = {}
     for _,v in ipairs(KeysTable) do
         usedKeys[v] = true -- mark all used keys
     end
     -- TODO: zoom_in and zoom_out
+    -- TODO: auto-detect keys for better understanding of options (idea: use get_buildinfo() & platform)
     if j == 1 then       -- User marked 'having DISP key'
         if not usedKeys["display"] then 
             -- not used
