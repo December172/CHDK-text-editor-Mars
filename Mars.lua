@@ -49,7 +49,7 @@
 @values q MENU VIDEO PLAYBACK DISP
 @subtitle Debug
 @param c Logging?
-@default c 0
+@default c 1
 @values c No Yes
 @param m Experimental Features?(Bugs warning!)
 @default m 0
@@ -554,8 +554,6 @@ function Menu:onDraw(itemWidth, topLines)
     until exitMenu == true
 end
 
-
-
 function Menu:getEntryType(idx)
     if idx ~= nil then 
         return self.tab[idx][2]
@@ -576,25 +574,16 @@ InsertMenu = Menu:new()
 SettingMenu = Menu:new()
 
 function InsertMenu:onDraw(itemWidth, topLines)
-    local res = {}
-    for k,v in pairs(self.tab) do
-        table.remove(self.tab, k)
-        table.insert(self.tab, k, {v, 'line'})  -- insert a dummy value to pass Menu:onDraw()
+   local realTab = {}
+    for i = 1, #(self.tab) do
+        realTab[i] = {self.tab[i], 'line'}
     end
-    res = (Menu:onDraw(itemWidth, topLines))  -- force to only return one value (only item)
-    for g,f in pairs(self.tab) do
-        table.remove(self.tab, g)
-        table.insert(self.tab, g, f[1])
-    end
-    return res
+    local realMenu = Menu:new():setTab(realTab):setTitle(self.title):onInit()
+    return realMenu:onDraw(itemWidth, topLines)
 end
 
 function InsertMenu:onCall(itemWidth, topLines)
     return self:onDraw(itemWidth, topLines)
-end
-
-function SettingMenu:onDraw(itemWidth, topLines)
-    return Menu:onDraw(itemWidth, topLines)
 end
 
 --[[
@@ -634,7 +623,7 @@ Menus = {
             Edit = Menu:new():setTab({
                     {{"Search..."},                       "func"}, -- TODO: add more search menu item
                     {{"Change current code language..."}, "func"},
-                    {"Merge files...",                    "func"}
+                    {{"Merge files..."},                  "func"}
                     }):setTitle("Edit Menu"):onInit(),
             Settings = SettingMenu:new():setTab({
                     {{"Enable/Disable backup (next save)"},"other"},
@@ -642,12 +631,10 @@ Menus = {
                    }):setTitle("Settings"):onInit(),
            }
 
---
-
 function Menus.Main:onCall()
     local item, idx = self:onDraw(nil, 3)
     if self:getEntryType(idx) == "submenu" and item ~= "Settings..."then  -- if it's a sub-menu...
-        Menus.item:onCall(self)  -- call its callback
+        Menus[item:gsub(" menu", "", 1)]:onCall(self)  -- call its callback
     elseif item == "Settings..." then 
         Menus.Settings:onCall(self)
     elseif item == "Exit (no save!)" then
@@ -724,10 +711,10 @@ function Menus.Edit:onCall()
         end
     elseif item == "Change current code language..." then
         local supportedLanguage = {}
-        for k,v in pairs(FunctionMaps) do
-            table.insert(supportedLanguage,{k})
+        for k,_ in pairs(FunctionMaps) do
+            table.insert(supportedLanguage, {k})
         end
-        local toChange = Dialog(supportedLanguage,WIDTH,HEIGHT,"Change current language",nil,2)
+        local toChange = Dialog(supportedLanguage, WIDTH, HEIGHT, "Change current language", nil,2)
         if FunctionMaps[toChange] then
             CurrentLanguage = toChange
         end
@@ -765,9 +752,7 @@ function Menus.Settings:onCall()
 end
 
 -- End Sub-menu callbacks
-
 -- End Menu Section
-
 
 -- This function does not work like a render() or a Redraw(),'cause call it does NOT redraw at once(redraws after some event,e.g,press a key)
 -- DO NOT USE console_redraw() HERE (will flash for a high frequence)
@@ -1098,7 +1083,10 @@ function InsertAscii()
 end
 
 function Dialog(tab, width, height, header,itemWidth, topLines)
-    local dialog = InsertMenu:new():setTab(tab):setTitle(header):setCallback(function(self) return self:onDraw(itemWidth, topLines) end):onInit()
+    local dialog = InsertMenu:new():setTab(tab):setTitle(header):onInit()
+    dialog.onCall = function(self) 
+        return self:onDraw(itemWidth, topLines)
+    end
     dialog.width = width or WIDTH
     dialog.height = height or HEIGHT
     return dialog:onCall()
